@@ -22,8 +22,7 @@ export async function createPlanRecord(
   return newPlan;
 }
 
-//@ts-ignore
-export async function appendLog(planId: Number, entry) {
+export async function appendLog(planId: String, entry: any) {
   const existingPlan = await Plan.findById(planId);
 
   if (!existingPlan) {
@@ -31,6 +30,21 @@ export async function appendLog(planId: Number, entry) {
   }
 
   existingPlan.push({ time: new Date(), entry });
+  await existingPlan.save();
+  return existingPlan;
+}
+
+export async function updateSteps(planId: String, stepId: Number, patch: any) {
+  const existingPlan = await Plan.findById(planId);
+  if (!existingPlan) {
+    throw new Error("Plan dones not exists");
+  }
+  const step = await existingPlan.steps.find((x: any) => x.id === stepId);
+  if (!step) {
+    throw new Error("Steps not found");
+  }
+
+  Object.assign(step, patch);
   await existingPlan.save();
   return existingPlan;
 }
