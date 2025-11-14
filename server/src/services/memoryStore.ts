@@ -48,3 +48,18 @@ export async function updateSteps(planId: String, stepId: Number, patch: any) {
   await existingPlan.save();
   return existingPlan;
 }
+
+export async function finalzePlan(planId: string, results: any) {
+  const existingPlan = await Plan.findById(planId);
+  if (!existingPlan) {
+    throw new Error("Plan not found");
+  }
+
+  existingPlan.finishedAt = new Date();
+  await existingPlan.save();
+  return existingPlan;
+}
+
+export async function getPlan(planId: String) {
+  return Plan.findById(planId).lean();
+}
