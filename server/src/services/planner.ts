@@ -18,10 +18,17 @@ export type PlannerResult = {
   steps: PlannerStep[];
 };
 
-export async function planner(goal: string, ctx = {}) {
+export async function planner(
+  cached = false,
+  cachedText: string,
+  goal: string,
+  ctx = {}
+) {
   if (!goal || goal.trim().length === 0) {
     throw new Error("Goal is required");
   }
+
+  const goalHashed = await hashText(goal);
 
   const prompt = `
 You are an autonomous planner. Input: a user goal.
@@ -45,40 +52,51 @@ Rules:
 Now create a plan for this: """${goal}"""
 `;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
+  let response;
+  let resultText;
+  if (!cached) {
+    response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
 
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: prompt }],
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: prompt }],
+        },
+      ],
+
+      config: {
+        responseModalities: ["Text"],
+        temperature: 0.2,
+        maxOutputTokens: 4048,
       },
-    ],
+    });
+    resultText = extractText(response);
+  }
 
-    config: {
-      responseModalities: ["Text"],
-      temperature: 0.2,
-      maxOutputTokens: 4048,
-    },
-  });
+  let jsonText;
+  if (!cached) {
+    jsonText = extractJSON(resultText);
+  } else {
+    jsonText = extractJSON(cachedText);
+  }
 
-  const resultText = extractText(response);
-
-  const hashedText = hashText(resultText);
-
-  await redisClient.push(hashText, resultText);
+  await redisClient.set(goalHashed, resultText!);
 
   if (!resultText) throw new Error("Gemini returned no text");
-
-  let jsonText = extractJSON(resultText);
 
   let parsed: PlannerResult;
   try {
     parsed = JSON.parse(jsonText);
   } catch (err: any) {
-    throw new Error(
-      `Failed to parse planner JSON: ${err.message}\nRAW: ${resultText}`
-    );
+    const cached = await redisClient.get(goalHashed);
+
+    if (cached) {
+      console.log("♻ Using cached planner result from Redis");
+      return planner(true, cached, goal);
+    }
+
+    throw err;
   }
 
   validatePlan(parsed);
@@ -88,8 +106,8 @@ Now create a plan for this: """${goal}"""
   return parsed;
 }
 
-function extractText(resp: GenerateContentResponse): string {
-  const parts = resp.candidates?.[0]?.content?.parts;
+function extractText(resp: GenerateContentResponse | undefined): string {
+  const parts = resp?.candidates?.[0]?.content?.parts;
   if (!parts) return "";
 
   return parts
@@ -98,7 +116,8 @@ function extractText(resp: GenerateContentResponse): string {
     .trim();
 }
 
-function extractJSON(text: string): string {
+function extractJSON(text: string | undefined): string {
+  if (!text) return "";
   let t = text.trim();
   if (t.startsWith("{") && t.endsWith("}")) return t;
 
