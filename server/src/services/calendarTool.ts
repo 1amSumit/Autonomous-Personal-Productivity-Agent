@@ -11,7 +11,7 @@ interface ctx {
   userId: string;
 }
 
-export async function calendrToolExecute(
+export async function calendarToolExecute(
   { title, date, durationMinutes = 60, description }: inputTypes,
   ctx: ctx
 ) {
