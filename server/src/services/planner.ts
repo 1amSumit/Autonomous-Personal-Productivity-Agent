@@ -38,5 +38,7 @@ Now create a plan for this goal: """${goal}"""
     ],
   });
 
-  console.log(aiResponse);
+  const res = (await aiResponse).data;
+
+  console.log(res);
 }
