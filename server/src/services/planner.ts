@@ -18,12 +18,7 @@ export type PlannerResult = {
   steps: PlannerStep[];
 };
 
-export async function planner(
-  cached = false,
-  cachedText: string,
-  goal: string,
-  ctx = {}
-) {
+export async function planner(goal: string, ctx = {}) {
   if (!goal || goal.trim().length === 0) {
     throw new Error("Goal is required");
   }
@@ -52,38 +47,30 @@ Rules:
 Now create a plan for this: """${goal}"""
 `;
 
-  let response;
-  let resultText;
-  if (!cached) {
-    response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
 
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: prompt }],
-        },
-      ],
-
-      config: {
-        responseModalities: ["Text"],
-        temperature: 0.2,
-        maxOutputTokens: 4048,
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: prompt }],
       },
-    });
-    resultText = extractText(response);
-  }
+    ],
 
-  let jsonText;
-  if (!cached) {
-    jsonText = extractJSON(resultText);
-  } else {
-    jsonText = extractJSON(cachedText);
-  }
+    config: {
+      responseModalities: ["Text"],
+      temperature: 0.2,
+      maxOutputTokens: 4048,
+    },
+  });
 
-  await redisClient.set(goalHashed, resultText!);
+  const resultText = extractText(response);
+
+  await redisClient.set(goalHashed, resultText);
 
   if (!resultText) throw new Error("Gemini returned no text");
+
+  let jsonText = extractJSON(resultText);
 
   let parsed: PlannerResult;
   try {
@@ -93,7 +80,7 @@ Now create a plan for this: """${goal}"""
 
     if (cached) {
       console.log("♻ Using cached planner result from Redis");
-      return planner(true, cached, goal);
+      return parsePlanner(cached, goal);
     }
 
     throw err;
@@ -106,8 +93,8 @@ Now create a plan for this: """${goal}"""
   return parsed;
 }
 
-function extractText(resp: GenerateContentResponse | undefined): string {
-  const parts = resp?.candidates?.[0]?.content?.parts;
+function extractText(resp: GenerateContentResponse): string {
+  const parts = resp.candidates?.[0]?.content?.parts;
   if (!parts) return "";
 
   return parts
@@ -116,8 +103,7 @@ function extractText(resp: GenerateContentResponse | undefined): string {
     .trim();
 }
 
-function extractJSON(text: string | undefined): string {
-  if (!text) return "";
+function extractJSON(text: string): string {
   let t = text.trim();
   if (t.startsWith("{") && t.endsWith("}")) return t;
 
@@ -142,4 +128,15 @@ function validatePlan(p: any) {
     if (typeof s.args !== "object")
       throw new Error(`Step ${idx} args must be an object`);
   });
+}
+
+function parsePlanner(text: string, originalGoal: string): PlannerResult {
+  const json = extractJSON(text);
+
+  const parsed = JSON.parse(json);
+  validatePlan(parsed);
+
+  parsed.goal = parsed.goal ?? originalGoal;
+
+  return parsed;
 }
