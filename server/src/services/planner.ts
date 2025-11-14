@@ -50,7 +50,6 @@ Now create a plan for this: """${goal}"""
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-
       contents: [
         {
           role: "user",

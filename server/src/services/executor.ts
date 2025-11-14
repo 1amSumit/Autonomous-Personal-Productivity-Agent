@@ -9,7 +9,7 @@ const toolMap = {
   email: eamilToolExecute,
 };
 
-export async function executor(planRecord: any) {
+export async function executor(planRecord: any, onEvent = (even: any) => {}) {
   const palnId = planRecord._id.toString();
   const steps = planRecord.planJson.steps;
 
