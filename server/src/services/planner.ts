@@ -47,37 +47,42 @@ Rules:
 Now create a plan for this: """${goal}"""
 `;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: prompt }],
-      },
-    ],
-
-    config: {
-      responseModalities: ["Text"],
-      temperature: 0.2,
-      maxOutputTokens: 4048,
-    },
-  });
-
-  const resultText = extractText(response);
-
-  await redisClient.set(goalHashed, resultText);
-
-  if (!resultText) throw new Error("Gemini returned no text");
-
-  let jsonText = extractJSON(resultText);
-
-  let parsed: PlannerResult;
   try {
-    parsed = JSON.parse(jsonText);
-  } catch (err: any) {
-    const cached = await redisClient.get(goalHashed);
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
 
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: prompt }],
+        },
+      ],
+
+      config: {
+        responseModalities: ["Text"],
+        temperature: 0.2,
+        maxOutputTokens: 4048,
+      },
+    });
+
+    const resultText = extractText(response);
+
+    await redisClient.set(goalHashed, resultText);
+
+    if (!resultText) throw new Error("Gemini returned no text");
+
+    let jsonText = extractJSON(resultText);
+
+    let parsed: PlannerResult;
+    parsed = JSON.parse(jsonText);
+    validatePlan(parsed);
+    parsed.goal = parsed.goal ?? goal;
+
+    return parsed;
+  } catch (err: any) {
+    console.log(err);
+    const cached = await redisClient.get(goalHashed);
+    console.log(cached);
     if (cached) {
       console.log("♻ Using cached planner result from Redis");
       return parsePlanner(cached, goal);
@@ -85,12 +90,6 @@ Now create a plan for this: """${goal}"""
 
     throw err;
   }
-
-  validatePlan(parsed);
-
-  parsed.goal = parsed.goal ?? goal;
-
-  return parsed;
 }
 
 function extractText(resp: GenerateContentResponse): string {

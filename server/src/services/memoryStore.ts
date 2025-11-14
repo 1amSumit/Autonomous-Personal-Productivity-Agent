@@ -29,7 +29,7 @@ export async function appendLog(planId: String, entry: any) {
     throw new Error("Plan does not exists");
   }
 
-  existingPlan.push({ time: new Date(), entry });
+  existingPlan.logs.push({ time: new Date(), entry });
   await existingPlan.save();
   return existingPlan;
 }
