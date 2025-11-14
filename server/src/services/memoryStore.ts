@@ -49,7 +49,7 @@ export async function updateSteps(planId: String, stepId: Number, patch: any) {
   return existingPlan;
 }
 
-export async function finalzePlan(planId: string, results: any) {
+export async function finalizePlan(planId: string, results: any) {
   const existingPlan = await Plan.findById(planId);
   if (!existingPlan) {
     throw new Error("Plan not found");

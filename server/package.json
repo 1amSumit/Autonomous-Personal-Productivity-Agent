@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "@google/genai": "^1.29.1",
+    "@tavily/core": "^0.5.13",
     "@types/express": "^5.0.5",
     "@types/nodemailer": "^7.0.3",
     "cors": "^2.8.5",
