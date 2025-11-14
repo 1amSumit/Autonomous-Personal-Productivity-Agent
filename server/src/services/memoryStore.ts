@@ -3,7 +3,7 @@ import Plan from "../models/Plan";
 export async function createPlanRecord(
   userId: String,
   goal: string,
-  planJson: JSON
+  planJson: any
 ) {
   //@ts-ignore
   const steps = (planJson.steps || []).map((s) => ({

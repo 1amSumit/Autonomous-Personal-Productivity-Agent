@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { planner } from "../services/planner";
 import { createPlanRecord, getPlan } from "../services/memoryStore";
+import { executor } from "../services/executor";
 
 const router = Router();
 
@@ -14,15 +15,19 @@ router.post("/goal", async (req, res) => {
       });
 
     const planJson = await planner(goal, { userId });
-    console.log(planJson);
+
+    const planRecord = await createPlanRecord(userId, goal, planJson);
+
+    await executor(planRecord);
 
     res.status(200).json({
-      message: "done",
+      status: "success",
+      planId: planRecord._id,
+      plan: planRecord.planJson,
     });
-
-    // const palnRecord = await createPlanRecord(userId, goal, planJson);
   } catch (err: any) {
-    res.status(400).json({
+    res.status(501).json({
+      status: "failed",
       message: err.message,
     });
   }

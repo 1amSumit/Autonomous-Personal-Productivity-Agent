@@ -1,4 +1,6 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { hashText } from "../utils/hashText";
+import redisClient from "../redis/redisClient";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY as string,
@@ -62,11 +64,13 @@ Now create a plan for this: """${goal}"""
 
   const resultText = extractText(response);
 
+  const hashedText = hashText(resultText);
+
+  await redisClient.push(hashText, resultText);
+
   if (!resultText) throw new Error("Gemini returned no text");
 
   let jsonText = extractJSON(resultText);
-
-  console.log(jsonText);
 
   let parsed: PlannerResult;
   try {
