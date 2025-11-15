@@ -134,11 +134,17 @@ Example:
 
 ## 1. Clone the project
 
-### git clone https://github.com/1amSumit/Autonomous-Personal-Productivity-Agent.git
+```git clone https://github.com/1amSumit/Autonomous-Personal-Productivity-Agent.git
 
-### cd agentic-ai-planner/server
+```
 
-## 2. npm install
+```cd agentic-ai-planner/server
+
+```
+
+## 2. Install Packages
+
+`npm install`
 
 ## 3. Setup environment variables
 
