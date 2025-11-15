@@ -19,7 +19,11 @@ const toolMap = {
   email: eamilToolExecute,
 };
 
-export async function executor(planRecord: any, onEvent = (event: any) => {}) {
+export async function executor(
+  planRecord: any,
+  onEvent = (event: any) => {},
+  userName?: string
+) {
   const planId = planRecord._id.toString();
   const steps = planRecord.planJson.steps;
 
@@ -96,7 +100,8 @@ export async function executor(planRecord: any, onEvent = (event: any) => {}) {
           toolResults,
           step.id,
           planRecord.planJson.goal,
-          pdfPath !== null
+          pdfPath !== null,
+          userName
         );
       } catch (enrichError: any) {
         console.error("⚠️ Failed to enrich email:", enrichError.message);
@@ -184,7 +189,8 @@ async function enrichEmailBodyWithAI(
   toolResults: Record<number, any>,
   currentStepId: number,
   goal: string,
-  hasPdfAttachment: boolean = false
+  hasPdfAttachment: boolean = false,
+  userName?: string
 ): Promise<string> {
   const previousSteps = allSteps.filter((s) => s.id < currentStepId);
   const searchSteps = previousSteps.filter(
