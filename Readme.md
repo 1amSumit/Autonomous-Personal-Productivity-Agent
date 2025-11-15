@@ -58,23 +58,30 @@ Built using **Node.js, MongoDB, Tavily Search, Nodemailer, Gemini (or Ollama Lla
 
 # 📂 Project Structure
 
-/server
-/ai
-├── safePlanner.js
-├── geminiClient.js
-/services
-├── executor.js
-├── searchTool.js
-├── emailTool.js
-├── calendarTool.js
-/utils
-├── geminiRetry.js
-├── extractJSON.js
-/models
-├── planModel.js
-├── logModel.js
-/routes
-├── telegramBot.js
+server/
+├── 🧠 ai/
+│ ├── 📝 safePlanner.js
+│ ├── 🔑 geminiClient.js
+│
+├── 🔧 services/
+│ ├── ⚙️ executor.js
+│ ├── 🔍 searchTool.js
+│ ├── ✉️ emailTool.js
+│ ├── 📆 calendarTool.js
+│
+├── 🧰 utils/
+│ ├── ♻️ geminiRetry.js
+│ ├── 🧩 extractJSON.js
+│
+├── 🗂 models/
+│ ├── 📄 planModel.js
+│ ├── 📄 logModel.js
+│
+├── 🌐 routes/
+│ ├── 🤖 telegramBot.js
+│ ├── 🔌 agentRoutes.js
+│
+└── 🚀 index.js
 
 ---
 
@@ -174,4 +181,50 @@ docker run -p 27017:27017 mongo
 
 ```
 npm run dev
+```
+
+## 🤖 Telegram Bot Setup
+
+### 1. Create Bot in BotFather
+
+#### Get your bot token.
+
+## 2. Use Polling Mode (easy for development)
+
+### Nothing else needed — server connects automatically.
+
+# 🔍 Tools
+
+## 🔍 Tools
+
+### Uses Tavily for web results.
+
+## 📧 Email Tool
+
+### Uses Nodemailer to send emails with dynamic content injection.
+
+## 📆 Calendar Tool
+
+### Stores user events/reminders in MongoDB.
+
+## 🧪 Example Goals to Test
+
+```
+Find 5 ML tutorials and email me.
+```
+
+```
+Plan my Sunday routine and remind me at 7 AM.
+```
+
+```
+Search best laptops under 50k and send me a list.
+```
+
+```
+Find remote internships and email me top 10 links.
+```
+
+```
+Search best restaurants near me and email me recommendations.
 ```
