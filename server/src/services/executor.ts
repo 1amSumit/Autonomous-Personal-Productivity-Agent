@@ -61,7 +61,6 @@ export async function executor(planRecord: any, onEvent = (event: any) => {}) {
 
     if (step.tool === "email") {
       try {
-        // Generate PDF with all search results if any searches were done
         const searchSteps = steps.filter(
           (s: any) => s.id < step.id && s.tool === "search" && toolResults[s.id]
         );
@@ -96,8 +95,8 @@ export async function executor(planRecord: any, onEvent = (event: any) => {}) {
           steps,
           toolResults,
           step.id,
-          planRecord.planJson.goal
-          // pdfPath !== null
+          planRecord.planJson.goal,
+          pdfPath !== null
         );
       } catch (enrichError: any) {
         console.error("⚠️ Failed to enrich email:", enrichError.message);
@@ -170,10 +169,6 @@ export async function executor(planRecord: any, onEvent = (event: any) => {}) {
     }
   }
 
-  console.log("toolResults");
-
-  console.log(toolResults);
-
   await finalizePlan(planId);
 
   onEvent({
@@ -188,7 +183,8 @@ async function enrichEmailBodyWithAI(
   allSteps: any[],
   toolResults: Record<number, any>,
   currentStepId: number,
-  goal: string
+  goal: string,
+  hasPdfAttachment: boolean = false
 ): Promise<string> {
   const previousSteps = allSteps.filter((s) => s.id < currentStepId);
   const searchSteps = previousSteps.filter(
@@ -233,6 +229,7 @@ async function enrichEmailBodyWithAI(
     }
   });
 
+  // Collect calendar events
   let calendarContext = "";
   calendarSteps.forEach((calStep) => {
     const result = toolResults[calStep.id];
@@ -246,6 +243,10 @@ async function enrichEmailBodyWithAI(
   }
 
   console.log("🤖 Generating AI-enriched email content with summaries...");
+
+  const pdfNote = hasPdfAttachment
+    ? "\n\nNOTE: A detailed PDF report with all search results is attached to this email. Mention this in the email."
+    : "";
 
   const prompt = `
 You are an AI assistant helping to write a professional email summary based on research findings.
@@ -262,9 +263,7 @@ ${searchContext}
 
 CALENDAR EVENTS CREATED:
 ${calendarContext}
-
-ALL SOURCE LINKS (MUST BE INCLUDED):
-${allUrls.join("\n")}
+${pdfNote}
 
 TASK:
 Write a complete professional email that replaces ALL placeholders in the template with actual content.
@@ -273,27 +272,32 @@ CRITICAL REQUIREMENTS:
 1. Replace ALL placeholders like [Please describe...], [Manager's Name], [Your Name], etc. with real content
 2. For [Manager's Name] - use "Manager" or the actual name if you know it
 3. For [Your Name] - remove or use appropriate closing
-4. Summarize the search results content into clear, concise paragraphs (3-5 sentences per topic)
-5. MUST include ALL source links from the research - add them at the end of relevant sections
-6. If multiple searches were done, organize findings by topic
+4. Provide a HIGH-LEVEL SUMMARY (2-3 sentences) of the search findings - don't go into too much detail${
+    hasPdfAttachment ? " since the full details are in the attached PDF" : ""
+  }
+5. Mention key tool names or main findings, but keep it brief
+6. ${
+    hasPdfAttachment
+      ? "MUST mention: 'Please see the attached PDF for detailed research findings with all sources and links.'"
+      : "Include 2-3 key source links at the end"
+  }
 7. Keep it professional, business-appropriate tone
-8. Total length: 250-400 words
+8. Total length: ${hasPdfAttachment ? "150-250" : "250-400"} words
 9. Format: Plain text paragraphs (NO markdown headers, NO bullet points)
-10. Include specific tool names, technologies, or key findings mentioned in the content
 
-EXAMPLE FORMAT:
+EXAMPLE FORMAT (with PDF):
 Hi Manager,
 
-Here's a summary of my productive work today, [DATE]:
+Here's a summary of my work today, [DATE]:
 
-Deep Work Session: [Summarize based on calendar events what was planned/accomplished]
+Deep Work Session: [Brief description based on calendar]
 
-AI Coding Tools Research: I researched various AI-powered coding assistants and development tools. My findings include: [2-3 sentences summarizing the KEY tools and their features from the search content]. Notable tools include [specific names from content]. [Another 1-2 sentences with insights].
+AI Coding Tools Research: I researched AI-powered development tools and found several promising options including [2-3 tool names]. The landscape shows strong growth in AI-assisted coding with focus on [1-2 key trends]. 
 
-Sources: [Source 1](url1), [Source 2](url2), [Source 3](url3)
+Please see the attached PDF report for detailed findings with all sources, links, and full content from my research.
 
 Best regards,
-[Appropriate closing]
+[Closing]
 
 Return ONLY the complete email body. No preamble, no explanation, just the email.
 `;
@@ -348,9 +352,7 @@ function enrichEmailBodySimple(
 ): string {
   let enrichedBody = originalBody;
 
-  // Try to replace basic placeholders
-  enrichedBody = enrichedBody.replace(/\[Manager's Name\]/g, "Manager");
-  enrichedBody = enrichedBody.replace(/\[Your Name\]/g, "");
+  enrichedBody = enrichedBody.replace(/\[Your Name\]/g, "xyz");
 
   // Add search results at the end
   if (searchSteps.length > 0) {

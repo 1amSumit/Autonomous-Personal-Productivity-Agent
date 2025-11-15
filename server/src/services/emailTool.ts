@@ -14,23 +14,48 @@ type EmailInput = {
   to: string;
   subject: string;
   body: string;
+  attachments?: Array<{
+    filename: string;
+    path: string;
+  }>;
 };
 
 export async function eamilToolExecute(
-  { to, subject, body }: EmailInput,
-  ctx = {}
+  { to, subject, body, attachments = [] }: EmailInput,
+  ctx: Record<string, any> = {}
 ) {
-  const info = await transporter.sendMail({
-    to,
-    from: process.env.FROM_MAIL,
-    subject,
-    text: body,
-    html: body,
-  });
+  try {
+    const mailOptions: any = {
+      to,
+      from: process.env.FROM_MAIL,
+      subject,
+      text: body,
+      html: body.replace(/\n/g, "<br>"),
+    };
 
-  return {
-    sent: true,
-    message: info.messageId,
-    raw: info,
-  };
+    if (attachments && attachments.length > 0) {
+      mailOptions.attachments = attachments.map((att) => ({
+        filename: att.filename,
+        path: att.path,
+      }));
+    }
+
+    console.log(
+      `📎 Attaching ${attachments.length} file(s):`,
+      attachments.map((a) => a.filename).join(", ")
+    );
+
+    const info = await transporter.sendMail(mailOptions);
+
+    console.log("✅ Email sent successfully:", info.messageId);
+
+    return {
+      sent: true,
+      message: info.messageId,
+      raw: info,
+    };
+  } catch (err: any) {
+    console.error("❌ Email sending failed:", err.message);
+    throw new Error(`Failed to send email: ${err.message}`);
+  }
 }
