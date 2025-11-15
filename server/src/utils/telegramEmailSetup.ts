@@ -1,9 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { getUserEmail, saveUserEmail } from "./telegramInfo";
 
-/**
- * Handle /setemail command
- */
 export async function handleSetEmailCommand(
   bot: TelegramBot,
   msg: TelegramBot.Message,
@@ -17,9 +14,6 @@ export async function handleSetEmailCommand(
   );
 }
 
-/**
- * Handle email input from user
- */
 export async function handleEmailInput(
   bot: TelegramBot,
   msg: TelegramBot.Message,
@@ -52,10 +46,6 @@ export async function handleEmailInput(
   }
 }
 
-/**
- * Check if user has email configured
- * Returns email if found, null otherwise
- */
 export async function checkUserEmail(
   msg: TelegramBot.Message,
   userModel: any
@@ -69,9 +59,6 @@ export async function checkUserEmail(
   return await getUserEmail(userId, userModel);
 }
 
-/**
- * Request user email if not already stored
- */
 export async function requestUserEmail(
   bot: TelegramBot,
   msg: TelegramBot.Message,
@@ -84,14 +71,12 @@ export async function requestUserEmail(
     return null;
   }
 
-  // Check if email already exists
   const existingEmail = await getUserEmail(userId, userModel);
 
   if (existingEmail) {
     return existingEmail;
   }
 
-  // Ask for email
   await bot.sendMessage(
     msg.chat.id,
     "📧 I need your email address to send you reports.\n\n" +

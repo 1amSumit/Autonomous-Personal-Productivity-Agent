@@ -14,10 +14,8 @@ export function initTelegramBot() {
 
   const bot = new TelegramBot(token, { polling: true });
 
-  // Track users waiting for email input
   const awaitingEmailInput = new Set<number>();
 
-  // Middleware: Create/update user on every message
   bot.on("message", async (msg) => {
     if (msg.from) {
       try {
@@ -38,7 +36,7 @@ export function initTelegramBot() {
       }
     }
   });
-  // Command: /start
+
   bot.onText(/^\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const userInfo = getTelegramUserInfo(msg);
@@ -55,12 +53,11 @@ export function initTelegramBot() {
         `/setemail - Set your email address\n` +
         `/myinfo - View your profile\n` +
         `/help - Show available commands\n\n` +
-        `⚠️ First, set your email using /setemail`,
+        `⚠️ Set your email using /setemail (needed only if you want to send emails)`,
       { parse_mode: "Markdown" }
     );
   });
 
-  // Command: /help
   bot.onText(/^\/help/, async (msg) => {
     const chatId = msg.chat.id;
 
@@ -68,20 +65,22 @@ export function initTelegramBot() {
       chatId,
       `📚 **Available Commands:**\n\n` +
         `/start - Welcome message\n` +
-        `/plan <goal> - Create a plan\n` +
-        `   Example: /plan Research AI coding tools and email summary to manager\n\n` +
+        `/plan <goal> - Create a plan\n\n` +
+        `**Examples:**\n` +
+        `/plan Research AI coding tools\n` +
+        `/plan Research AI tools and email summary to manager\n` +
+        `/plan Find restaurants and send list to john@example.com\n\n` +
         `/setemail - Set your email address\n` +
         `/myinfo - View your profile information\n` +
         `/help - Show this help message\n\n` +
         `**How it works:**\n` +
-        `1. Set your email with /setemail\n` +
-        `2. Create a plan with /plan followed by your goal\n` +
-        `3. I'll research, create calendar events, and email you a detailed PDF report!`,
+        `1. Just use /plan for research and calendar tasks\n` +
+        `2. Add "email to..." if you want to send results via email\n` +
+        `3. I'll research, create calendar events, and optionally email reports!`,
       { parse_mode: "Markdown" }
     );
   });
 
-  // Command: /setemail
   bot.onText(/^\/setemail/, async (msg) => {
     const chatId = msg.chat.id;
 
@@ -91,11 +90,9 @@ export function initTelegramBot() {
         "Example: user@example.com"
     );
 
-    // Mark this user as awaiting email input
     awaitingEmailInput.add(msg.from?.id || 0);
   });
 
-  // Command: /myinfo
   bot.onText(/^\/myinfo/, async (msg) => {
     const chatId = msg.chat.id;
     const userInfo = getTelegramUserInfo(msg);
@@ -115,7 +112,6 @@ export function initTelegramBot() {
     );
   });
 
-  // Command: /plan
   bot.onText(/^\/plan(.+)?/, async (msg, match) => {
     const chatId = msg.chat.id;
     const userId = msg.from?.id;
@@ -124,57 +120,78 @@ export function initTelegramBot() {
       return bot.sendMessage(chatId, "❌ Could not identify user.");
     }
 
-    // Check if user has email configured
-    const user = await UserModel.findOne({ telegramId: userId });
-
-    if (!user?.email) {
-      return bot.sendMessage(
-        chatId,
-        "❌ Please set your email first using /setemail\n\n" +
-          "This is required for sending summary emails with research reports."
-      );
-    }
-
-    // Get the goal from the command
     const goal = match?.[1]?.trim();
 
     if (!goal) {
       return bot.sendMessage(
         chatId,
         "❓ Please provide a goal for your plan.\n\n" +
-          "**Example:**\n" +
-          "/plan Research AI coding tools and send summary to manager\n\n" +
-          "/plan Plan a productive work day tomorrow with deep work session"
+          "**Examples:**\n" +
+          "/plan Research AI coding tools\n" +
+          "/plan Research AI tools and email summary to my manager\n" +
+          "/plan Find restaurants and email list to john@example.com"
       );
+    }
+
+    const needsEmail = /\b(email|send|notify|share)\b/i.test(goal);
+
+    if (needsEmail) {
+      const user = await UserModel.findOne({ telegramId: userId });
+
+      if (!user?.email) {
+        return bot.sendMessage(
+          chatId,
+          "❌ Please set your email first using /setemail\n\n" +
+            "This is required when your plan includes sending emails."
+        );
+      }
     }
 
     await bot.sendMessage(chatId, "🤖 Thinking… generating a plan...");
 
     try {
-      // Generate plan
       const planJson = await planner(goal, { userId: chatId.toString() });
 
-      // Replace email placeholders with user's actual email
-      planJson.steps.forEach((step) => {
-        if (step.tool === "email") {
-          if (
-            step.args.to &&
-            (step.args.to.includes("example.com") ||
-              step.args.to.includes("gmail.com"))
-          ) {
-            step.args.to = user.email;
-          }
-        }
-      });
+      const user = await UserModel.findOne({ telegramId: userId });
 
-      // Create plan record
+      const hasEmailSteps = planJson.steps.some((s) => s.tool === "email");
+
+      if (hasEmailSteps) {
+        planJson.steps.forEach((step) => {
+          if (step.tool === "email") {
+            const originalTo = step.args.to;
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+            const emailInGoal = goal.match(
+              /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/
+            );
+
+            if (emailInGoal && emailInGoal[0]) {
+              // User mentioned specific email in goal
+              console.log(`📧 Using email from goal: ${emailInGoal[0]}`);
+              step.args.to = emailInGoal[0];
+            } else if (
+              emailRegex.test(originalTo) &&
+              !originalTo.includes("example.com") &&
+              !originalTo.includes("company.com")
+            ) {
+              console.log(`📧 Using planner's email: ${originalTo}`);
+            } else {
+              console.log(
+                `📧 No valid recipient, using user email: ${user?.email}`
+              );
+              step.args.to = user?.email || "user@example.com";
+            }
+          }
+        });
+      }
+
       const planRecord = await createPlanRecord(
         chatId.toString(),
         goal,
         planJson
       );
 
-      // Show plan to user
       let planText = "📋 **Plan Created!**\n\n";
       planText += `🎯 **Goal:** ${planJson.goal}\n\n`;
       planText += `📝 **Steps:**\n`;
@@ -185,44 +202,71 @@ export function initTelegramBot() {
             : step.tool === "calendar"
             ? "📅"
             : "📧";
-        planText += `${emoji} ${step.id}. ${step.action}\n`;
+        planText += `${emoji} ${step.id}. ${step.action}`;
+
+        // Show email recipient if it's an email step
+        if (step.tool === "email" && step.args.to) {
+          planText += ` → ${step.args.to}`;
+        }
+        planText += `\n`;
       });
 
       await bot.sendMessage(chatId, planText, { parse_mode: "Markdown" });
 
       await bot.sendMessage(chatId, "⚙️ Starting execution…");
 
-      // Get user info for personalization
       const userInfo = getTelegramUserInfo(msg);
 
-      // Execute plan with event callbacks
-      await executor(
-        planRecord,
-        async (event) => {
-          if (event.type === "log") {
-            // Only send important updates
-            if (
-              event.message.includes("✅") ||
-              event.message.includes("❌") ||
-              event.message.includes("Starting step")
-            ) {
-              await bot.sendMessage(chatId, `${event.message}`);
+      try {
+        await executor(
+          planRecord,
+          async (event) => {
+            try {
+              if (event.type === "log") {
+                if (
+                  event.message.includes("✅") ||
+                  event.message.includes("❌") ||
+                  event.message.includes("Starting step")
+                ) {
+                  await bot.sendMessage(chatId, `${event.message}`);
+                }
+              }
+              if (event.type === "retry") {
+                await bot.sendMessage(chatId, `🔁 Retrying: ${event.message}`);
+              }
+              if (event.type === "completed") {
+                let completionMsg = "✅ **Execution finished!**\n\n";
+
+                if (hasEmailSteps) {
+                  const emailStep = planJson.steps.find(
+                    (s) => s.tool === "email"
+                  );
+                  if (emailStep) {
+                    completionMsg += `📧 Email sent to: ${emailStep.args.to}\n`;
+                    completionMsg += `Check the inbox for the detailed report with PDF attachment.`;
+                  }
+                } else {
+                  completionMsg += "All tasks completed successfully!";
+                }
+
+                await bot.sendMessage(chatId, completionMsg, {
+                  parse_mode: "Markdown",
+                });
+              }
+            } catch (eventError) {
+              console.error("Error in event handler:", eventError);
             }
-          }
-          if (event.type === "retry") {
-            await bot.sendMessage(chatId, `🔁 Retrying: ${event.message}`);
-          }
-          if (event.type === "completed") {
-            await bot.sendMessage(
-              chatId,
-              `✅ **Execution finished!**\n\n` +
-                `📧 Check your email (${user.email}) for the detailed report with PDF attachment.`,
-              { parse_mode: "Markdown" }
-            );
-          }
-        },
-        userInfo.name
-      );
+          },
+          userInfo.name
+        );
+      } catch (execError: any) {
+        console.error("❌ Executor error:", execError);
+        await bot.sendMessage(
+          chatId,
+          `❌ **Execution error:** ${execError.message}`,
+          { parse_mode: "Markdown" }
+        );
+      }
     } catch (err: any) {
       console.error(err);
       await bot.sendMessage(
@@ -234,18 +278,15 @@ export function initTelegramBot() {
     }
   });
 
-  // Handle regular messages (non-commands)
   bot.on("message", async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from?.id;
     const userText = msg.text?.trim();
 
-    // Skip if it's a command or no text
     if (!userText || userText.startsWith("/")) {
       return;
     }
 
-    // Check if user is awaiting email input
     if (userId && awaitingEmailInput.has(userId)) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -281,11 +322,9 @@ export function initTelegramBot() {
       return;
     }
 
-    // Check if message looks like an email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (emailRegex.test(userText)) {
-      // User sent an email without using /setemail
       try {
         await UserModel.findOneAndUpdate(
           { telegramId: userId },
@@ -308,7 +347,6 @@ export function initTelegramBot() {
       return;
     }
 
-    // Otherwise, suggest using /plan
     await bot.sendMessage(
       chatId,
       "💡 Tip: Use /plan before your goal to create a plan.\n\n" +
@@ -317,7 +355,6 @@ export function initTelegramBot() {
     );
   });
 
-  // Error handling
   bot.on("polling_error", (error) => {
     console.error("❌ Polling error:", error);
   });

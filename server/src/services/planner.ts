@@ -59,6 +59,19 @@ AVAILABLE TOOLS:
 
 USER GOAL: """${goal}"""
 
+
+CRITICAL RULES FOR EMAIL TOOL:
+- ONLY use the email tool if the user EXPLICITLY mentions:
+  * "send email", "email to", "email my manager", "email boss", "send summary to", "notify via email"
+  * Email addresses or recipient names (manager, boss, team, etc.)
+- DO NOT create email steps for goals like:
+  * "Research AI tools" (no email mentioned)
+  * "Plan my day" (no email mentioned)
+  * "Find information about X" (no email mentioned)
+- If user says "email to manager" but doesn't provide email address, use "manager@company.com" as placeholder
+- If user provides specific email like "email to john@example.com", use that exact email
+
+
 CRITICAL JSON RULES:
 1. Return ONLY the JSON object - no markdown, no commentary, no explanation
 2. Do NOT wrap in \`\`\`json code blocks

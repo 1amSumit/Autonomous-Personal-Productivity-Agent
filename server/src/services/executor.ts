@@ -277,7 +277,7 @@ Write a complete professional email that replaces ALL placeholders in the templa
 CRITICAL REQUIREMENTS:
 1. Replace ALL placeholders like [Please describe...], [Manager's Name], [Your Name], etc. with real content
 2. For [Manager's Name] - use "Manager" or the actual name if you know it
-3. For [Your Name] - remove or use appropriate closing
+3. For [Your Name] use ${userName} - remove or use appropriate closing
 4. Provide a HIGH-LEVEL SUMMARY (2-3 sentences) of the search findings - don't go into too much detail${
     hasPdfAttachment ? " since the full details are in the attached PDF" : ""
   }
@@ -339,7 +339,7 @@ Return ONLY the complete email body. No preamble, no explanation, just the email
     }
   } catch (error: any) {
     console.error("❌ AI enrichment failed:", error.message);
-    // Fallback to simple enrichment
+
     return enrichEmailBodySimple(
       originalBody,
       searchSteps,
@@ -349,7 +349,6 @@ Return ONLY the complete email body. No preamble, no explanation, just the email
   }
 }
 
-// Fallback function if AI enrichment fails
 function enrichEmailBodySimple(
   originalBody: string,
   searchSteps: any[],
