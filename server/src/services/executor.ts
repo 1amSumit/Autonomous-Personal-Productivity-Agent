@@ -3,6 +3,11 @@ import { calendarToolExecute } from "./calendarTool";
 import { eamilToolExecute } from "./emailTool";
 import { appendLog, finalizePlan, updateSteps } from "./memoryStore";
 import { searchToolExecute } from "./searchTool";
+import {
+  formatSearchStepsForPDF,
+  generateSearchResultsPDF,
+} from "../utils/pdfGnerator";
+import path from "path";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY as string,
@@ -56,17 +61,46 @@ export async function executor(planRecord: any, onEvent = (event: any) => {}) {
 
     if (step.tool === "email") {
       try {
+        // Generate PDF with all search results if any searches were done
+        const searchSteps = steps.filter(
+          (s: any) => s.id < step.id && s.tool === "search" && toolResults[s.id]
+        );
+
+        let pdfPath: string | null = null;
+
+        if (searchSteps.length > 0) {
+          console.log("📄 Generating PDF with search results...");
+          const searchData = formatSearchStepsForPDF(steps, toolResults);
+
+          try {
+            pdfPath = await generateSearchResultsPDF(
+              searchData,
+              planRecord.planJson.goal
+            );
+            console.log(`✅ PDF generated: ${pdfPath}`);
+
+            // Attach PDF to email
+            step.args.attachments = step.args.attachments || [];
+            step.args.attachments.push({
+              filename: path.basename(pdfPath),
+              path: pdfPath,
+            });
+          } catch (pdfError: any) {
+            console.error("⚠️ PDF generation failed:", pdfError.message);
+            // Continue without PDF if generation fails
+          }
+        }
+
         step.args.body = await enrichEmailBodyWithAI(
           step.args.body,
           steps,
           toolResults,
           step.id,
           planRecord.planJson.goal
+          // pdfPath !== null
         );
-
-        console.log(step.args.body);
       } catch (enrichError: any) {
-        console.error("⚠️ Failed to enrich email body:", enrichError.message);
+        console.error("⚠️ Failed to enrich email:", enrichError.message);
       }
     }
 
