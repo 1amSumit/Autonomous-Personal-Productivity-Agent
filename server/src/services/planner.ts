@@ -25,26 +25,63 @@ export async function planner(goal: string, ctx = {}) {
 
   const goalHashed = await hashText(goal);
 
+  try {
+    const cached = await redisClient.get(goalHashed);
+    if (cached) {
+      console.log("♻️ Using cached planner result from Redis");
+      return parsePlanner(cached, goal);
+    }
+  } catch (cacheErr) {
+    console.warn("Cache read failed:", cacheErr);
+  }
+
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(9, 0, 0, 0);
+
   const prompt = `
-You are an autonomous planner. Input: a user goal.
+You are an autonomous AI planner. You MUST return ONLY valid JSON with NO additional text.
 
-Return ONLY valid JSON (no commentary, no markdown). 
-The JSON MUST match exactly this shape:
+CURRENT DATE & TIME: ${now.toISOString()}
+TOMORROW: ${tomorrow.toISOString()}
+TIMEZONE: ${Intl.DateTimeFormat().resolvedOptions().timeZone}
 
+AVAILABLE TOOLS:
+1. "search" - Search for information
+   Example: { "query": "best workout routines 2025" }
+
+2. "calendar" - Create calendar events
+   Example: { "title": "Morning Workout", "startTime": "2025-11-15T06:00:00.000Z", "endTime": "2025-11-15T07:00:00.000Z", "description": "30 min cardio workout" }
+
+3. "email" - Send emails
+   Example: { "to": "user@example.com", "subject": "Workout Plan", "body": "Here is your plan..." }
+
+USER GOAL: """${goal}"""
+
+CRITICAL JSON RULES:
+1. Return ONLY the JSON object - no markdown, no commentary, no explanation
+2. Do NOT wrap in \`\`\`json code blocks
+3. Use double quotes for ALL strings (never single quotes)
+4. ALL dates MUST be in ISO-8601 format: "YYYY-MM-DDTHH:MM:SS.000Z"
+5. Ensure ALL brackets and braces are properly closed
+6. Do NOT add trailing commas in arrays or objects
+7. Escape special characters in strings (use \\" for quotes inside strings)
+
+RESPONSE STRUCTURE:
 {
-  "goal": "<original goal>",
+  "goal": "the user goal here",
   "steps": [
-    { "id": 1, "action": "ShortActionName", "tool": "search|calendar|email", "args": { } }
+    {
+      "id": 1,
+      "action": "short description",
+      "tool": "search",
+      "args": { "query": "search terms" }
+    }
   ]
 }
 
-Rules:
-1) Allowed tools: "search", "calendar", "email".
-2) Each step must have: id (int), action (string), tool (allowed value), args (object).
-3) If using dates, they MUST be ISO-8601 format.
-4) Return JSON only.
-
-Now create a plan for this: """${goal}"""
+IMPORTANT: Return ONLY the JSON. Start with { and end with }. NO other text.
 `;
 
   try {
@@ -81,7 +118,7 @@ Now create a plan for this: """${goal}"""
   } catch (err: any) {
     console.log(err);
     const cached = await redisClient.get(goalHashed);
-    console.log(cached);
+
     if (cached) {
       console.log("♻ Using cached planner result from Redis");
       return parsePlanner(cached, goal);

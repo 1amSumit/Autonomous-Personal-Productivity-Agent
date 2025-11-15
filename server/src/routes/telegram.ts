@@ -42,7 +42,7 @@ export function initTelegramBot() {
 
       bot.sendMessage(chatId, "⚙️ Starting execution…");
 
-      await executor(planRecord, (event) => {
+      executor(planRecord, (event) => {
         if (event.type === "log") {
           bot.sendMessage(chatId, `📘 Log: ${event.message}`);
         }
