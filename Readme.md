@@ -58,6 +58,7 @@ Built using **Node.js, MongoDB, Tavily Search, Nodemailer, Gemini (or Ollama Lla
 
 # 📂 Project Structure
 
+```
 server/
 ├── 🧠 ai/
 │ ├── 📝 safePlanner.js
@@ -82,6 +83,7 @@ server/
 │ ├── 🔌 agentRoutes.js
 │
 └── 🚀 index.js
+```
 
 ---
 
