@@ -7,6 +7,7 @@ import {
   formatSearchStepsForPDF,
   generateSearchResultsPDF,
 } from "../utils/pdfGnerator";
+import { generateICSFile } from "../utils/icsGenerator";
 import path from "path";
 
 const ai = new GoogleGenAI({
@@ -69,8 +70,14 @@ export async function executor(
           (s: any) => s.id < step.id && s.tool === "search" && toolResults[s.id]
         );
 
-        let pdfPath: string | null = null;
+        const calendarSteps = steps.filter(
+          (s: any) => s.id < step.id && s.tool === "calendar" && toolResults[s.id]
+        );
 
+        let pdfPath: string | null = null;
+        const icsFiles: string[] = [];
+
+        // Generate PDF for search results
         if (searchSteps.length > 0) {
           console.log("📄 Generating PDF with search results...");
           const searchData = formatSearchStepsForPDF(steps, toolResults);
@@ -94,6 +101,45 @@ export async function executor(
           }
         }
 
+        // Generate ICS files for calendar events
+        if (calendarSteps.length > 0) {
+          console.log("📅 Generating ICS calendar files for events...");
+          
+          for (const calStep of calendarSteps) {
+            const calResult = toolResults[calStep.id];
+            
+            if (calResult?.success && calResult?.event) {
+              try {
+                const icsPath = await generateICSFile({
+                  title: calResult.event.title,
+                  description: calResult.event.description || "",
+                  startTime: new Date(calResult.event.startTime),
+                  endTime: new Date(calResult.event.endTime),
+                  location: calResult.event.location || "",
+                  attendees: step.args.to ? [step.args.to] : [],
+                });
+
+                icsFiles.push(icsPath);
+                console.log(`✅ ICS file generated: ${icsPath}`);
+
+                // Attach ICS to email
+                step.args.attachments = step.args.attachments || [];
+                step.args.attachments.push({
+                  filename: path.basename(icsPath),
+                  path: icsPath,
+                });
+              } catch (icsError: any) {
+                console.error("⚠️ ICS generation failed:", icsError.message);
+                // Continue without ICS if generation fails
+              }
+            }
+          }
+
+          if (icsFiles.length > 0) {
+            console.log(`✅ ${icsFiles.length} calendar invite(s) attached to email`);
+          }
+        }
+
         step.args.body = await enrichEmailBodyWithAI(
           step.args.body,
           steps,
@@ -101,7 +147,8 @@ export async function executor(
           step.id,
           planRecord.planJson.goal,
           pdfPath !== null,
-          userName
+          userName,
+          icsFiles.length > 0
         );
       } catch (enrichError: any) {
         console.error("⚠️ Failed to enrich email:", enrichError.message);
@@ -190,7 +237,8 @@ async function enrichEmailBodyWithAI(
   currentStepId: number,
   goal: string,
   hasPdfAttachment: boolean = false,
-  userName?: string
+  userName?: string,
+  hasICSAttachment: boolean = false
 ): Promise<string> {
   const previousSteps = allSteps.filter((s) => s.id < currentStepId);
   const searchSteps = previousSteps.filter(
@@ -254,6 +302,10 @@ async function enrichEmailBodyWithAI(
     ? "\n\nNOTE: A detailed PDF report with all search results is attached to this email. Mention this in the email."
     : "";
 
+  const icsNote = hasICSAttachment
+    ? "\n\nNOTE: Calendar invite(s) (.ics file) are attached to this email. Mention that the recipient can click to add the event(s) to their calendar."
+    : "";
+
   const prompt = `
 You are an AI assistant helping to write a professional email summary based on research findings.
 
@@ -270,6 +322,7 @@ ${searchContext}
 CALENDAR EVENTS CREATED:
 ${calendarContext}
 ${pdfNote}
+${icsNote}
 
 TASK:
 Write a complete professional email that replaces ALL placeholders in the template with actual content.
@@ -287,11 +340,16 @@ CRITICAL REQUIREMENTS:
       ? "MUST mention: 'Please see the attached PDF for detailed research findings with all sources and links.'"
       : "Include 2-3 key source links at the end"
   }
-7. Keep it professional, business-appropriate tone
-8. Total length: ${hasPdfAttachment ? "150-250" : "250-400"} words
-9. Format: Plain text paragraphs (NO markdown headers, NO bullet points)
+7. ${
+    hasICSAttachment
+      ? "MUST mention: 'Calendar invite(s) are attached - click to add the event(s) to your calendar.'"
+      : ""
+  }
+8. Keep it professional, business-appropriate tone
+9. Total length: ${hasPdfAttachment ? "150-250" : "250-400"} words
+10. Format: Plain text paragraphs (NO markdown headers, NO bullet points)
 
-EXAMPLE FORMAT (with PDF):
+EXAMPLE FORMAT (with PDF and Calendar):
 Hi Manager,
 
 Here's a summary of my work today, [DATE]:
@@ -301,6 +359,8 @@ Deep Work Session: [Brief description based on calendar]
 AI Coding Tools Research: I researched AI-powered development tools and found several promising options including [2-3 tool names]. The landscape shows strong growth in AI-assisted coding with focus on [1-2 key trends]. 
 
 Please see the attached PDF report for detailed findings with all sources, links, and full content from my research.
+
+I've also scheduled the discussed events - calendar invites are attached for you to add to your calendar.
 
 Best regards,
 [Closing]
